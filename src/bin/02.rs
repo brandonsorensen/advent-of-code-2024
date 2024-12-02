@@ -14,14 +14,31 @@ pub fn part_two(input: &str) -> Option<u32> {
 
 fn is_monotonic(report: &[u32], tolerance: u16) -> bool {
   match (report.first(), report.get(1)) {
-    (Some(current), Some(next)) if current > next && current.abs_diff(*next) <= MAX_DIFF => {
-      monotonic::<_, MAX_DIFF>(report.iter(), |x, y| x <= y, tolerance)
+    (Some(current), Some(next)) if current > next => {
+      monotonically_increasing::<MAX_DIFF>(report.iter(), tolerance)
+        || (tolerance > 0 && is_monotonic(&report[1..], tolerance - 1))
     }
-    (Some(current), Some(next)) if current < next && current.abs_diff(*next) <= MAX_DIFF => {
-      monotonic::<_, MAX_DIFF>(report.iter(), |x, y| x >= y, tolerance)
+    (Some(current), Some(next)) if current < next => {
+      monotonically_decreasing::<MAX_DIFF>(report.iter(), tolerance)
+        || (tolerance > 0 && is_monotonic(&report[1..], tolerance - 1))
     }
+    (Some(_only), None) => true,
     _ => false,
   }
+}
+
+fn monotonically_increasing<'a, const M: u32>(
+  report: impl Iterator<Item = &'a u32>,
+  tolerance: u16,
+) -> bool {
+  monotonic::<_, MAX_DIFF>(report, |x, y| x <= y, tolerance)
+}
+
+fn monotonically_decreasing<'a, const M: u32>(
+  report: impl Iterator<Item = &'a u32>,
+  tolerance: u16,
+) -> bool {
+  monotonic::<_, MAX_DIFF>(report, |x, y| x >= y, tolerance)
 }
 
 fn monotonic<'a, F, const M: u32>(
@@ -33,19 +50,14 @@ where
   F: Fn(u32, u32) -> bool,
 {
   let mut faults = 0u16;
-  let mut windows = report.tuple_windows::<(_, _, _)>().enumerate();
-  while let Some((i, (current, next, next_next))) = windows.next() {
+  let mut windows = report.tuple_windows::<(_, _)>().tuple_windows::<(_, _)>();
+  while let Some(((current, next), (_next, next_next))) = windows.next() {
     let refuted = {
       let first_refuted = refutes::<_, M>(*current, *next, &refutation);
       if first_refuted && faults < tolerance {
         faults += 1;
         windows.next();
-        let second = refutes::<_, M>(*current, *next_next, &refutation);
-        if !second && i == 0 {
-          refutes::<_, M>(*next, *next_next, &refutation)
-        } else {
-          second
-        }
+        refutes::<_, M>(*current, *next_next, &refutation)
       } else {
         first_refuted
       }
@@ -66,17 +78,35 @@ where
   refuted || outside_thresh
 }
 
-fn count_safe_reports(input: &str, tolerance: u16) -> u32 {
+#[allow(dead_code)]
+#[derive(Debug)]
+struct Report {
+  levels: Vec<u32>,
+  safe: bool,
+}
+
+fn reports(input: &str, tolerance: u16) -> impl Iterator<Item = Report> + '_ {
   input
     .lines()
-    .map(|line| {
+    .map(|line| line.trim())
+    .filter(|line| !line.is_empty())
+    .map(move |line| {
       let levels = line
+        .trim()
         .split_ascii_whitespace()
         .map(|s| s.parse::<u32>().expect("couldn't parse string to int"))
         .collect::<Vec<_>>();
-      // dbg!(line);
-      is_monotonic(&levels, tolerance) as u32
+      let is_safe = is_monotonic(&levels, tolerance);
+      Report {
+        levels,
+        safe: is_safe,
+      }
     })
+}
+
+fn count_safe_reports(input: &str, tolerance: u16) -> u32 {
+  reports(input, tolerance)
+    .map(|report| report.safe as u32)
     .sum()
 }
 
@@ -92,7 +122,6 @@ mod tests {
         5 10
         1 5 6 7 4
         9 8 7
-        1 2
         7 6 4 2 1
         1 2 7 8 9
         9 7 6 2 1
@@ -106,7 +135,7 @@ mod tests {
 
   #[test]
   fn test_part_two() {
-    let result = part_two(
+    let reports = reports(
       "
         7 6 4 2 1
         1 2 7 8 9
@@ -115,8 +144,15 @@ mod tests {
         8 6 4 4 1
         1 3 6 7 9
         9 3 4 5 6
+        1 5 6 7 9
       ",
-    );
-    assert!(matches!(result, Some(5)));
+      1,
+    )
+    .collect_vec();
+    dbg!(&reports);
+    assert_eq!(
+      vec![true, false, false, true, true, true, true, true],
+      reports.into_iter().map(|report| report.safe).collect_vec()
+    )
   }
 }
