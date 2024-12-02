@@ -5,7 +5,35 @@ use itertools::Itertools;
 const MAX_DIFF: u32 = 3;
 
 pub fn part_one(input: &str) -> Option<u32> {
-  Some(count_safe_reports(input, 0))
+  // Some(count_safe_reports(input, 0))
+  let reports = input
+    .lines()
+    .map(|line| line.trim())
+    .filter(|line| !line.is_empty())
+    .map(move |line| {
+      let levels = line
+        .trim()
+        .split_ascii_whitespace()
+        .map(|s| s.parse::<u32>().expect("couldn't parse string to int"))
+        .collect::<Vec<_>>();
+      let is_safe = {
+        match (levels.first(), levels.get(1)) {
+          (Some(current), Some(next)) if current > next => {
+            simple_monotonic::<_, MAX_DIFF>(levels.iter(), |x, y| x <= y)
+          }
+          (Some(current), Some(next)) if current < next => {
+            simple_monotonic::<_, MAX_DIFF>(levels.iter(), |x, y| x >= y)
+          }
+          (Some(_only), None) => true,
+          _ => false,
+        }
+      };
+      Report {
+        levels,
+        safe: is_safe,
+      }
+    });
+  Some(reports.map(|report| report.safe as u32).sum())
 }
 
 pub fn part_two(input: &str) -> Option<u32> {
@@ -14,12 +42,12 @@ pub fn part_two(input: &str) -> Option<u32> {
 
 fn is_monotonic(report: &[u32], tolerance: u16) -> bool {
   match (report.first(), report.get(1)) {
-    (Some(current), Some(next)) if current > next => {
-      monotonically_increasing::<MAX_DIFF>(report.iter(), tolerance)
+    (Some(current), Some(next)) if current > next && current.abs_diff(*next) <= MAX_DIFF => {
+      monotonically_increasing::<MAX_DIFF>(report, tolerance)
         || (tolerance > 0 && is_monotonic(&report[1..], tolerance - 1))
     }
-    (Some(current), Some(next)) if current < next => {
-      monotonically_decreasing::<MAX_DIFF>(report.iter(), tolerance)
+    (Some(current), Some(next)) if current < next && current.abs_diff(*next) <= MAX_DIFF => {
+      monotonically_decreasing::<MAX_DIFF>(report, tolerance)
         || (tolerance > 0 && is_monotonic(&report[1..], tolerance - 1))
     }
     (Some(_only), None) => true,
@@ -27,31 +55,22 @@ fn is_monotonic(report: &[u32], tolerance: u16) -> bool {
   }
 }
 
-fn monotonically_increasing<'a, const M: u32>(
-  report: impl Iterator<Item = &'a u32>,
-  tolerance: u16,
-) -> bool {
+fn monotonically_increasing<'a, const M: u32>(report: &[u32], tolerance: u16) -> bool {
   monotonic::<_, MAX_DIFF>(report, |x, y| x <= y, tolerance)
 }
 
-fn monotonically_decreasing<'a, const M: u32>(
-  report: impl Iterator<Item = &'a u32>,
-  tolerance: u16,
-) -> bool {
+fn monotonically_decreasing<'a, const M: u32>(report: &[u32], tolerance: u16) -> bool {
   monotonic::<_, MAX_DIFF>(report, |x, y| x >= y, tolerance)
 }
 
-fn monotonic<'a, F, const M: u32>(
-  report: impl Iterator<Item = &'a u32>,
-  refutation: F,
-  tolerance: u16,
-) -> bool
+fn monotonic<'a, F, const M: u32>(report: &[u32], refutation: F, tolerance: u16) -> bool
 where
   F: Fn(u32, u32) -> bool,
 {
   let mut faults = 0u16;
-  let mut windows = report.tuple_windows::<(_, _)>().tuple_windows::<(_, _)>();
-  while let Some(((current, next), (_next, next_next))) = windows.next() {
+  let mut windows = report.iter().tuple_windows::<(_, _, _)>();
+  while let Some((current, next, next_next)) = windows.next() {
+    dbg!(current, next, next_next);
     let refuted = {
       let first_refuted = refutes::<_, M>(*current, *next, &refutation);
       if first_refuted && faults < tolerance {
@@ -66,7 +85,23 @@ where
       return false;
     }
   }
+  if report.len() > 2 {
+    let penultimate = report.get(report.len() - 2).unwrap();
+    let last = report.last().unwrap();
+    if refutes::<_, M>(*penultimate, *last, &refutation) {
+      return false;
+    }
+  }
   true
+}
+
+fn simple_monotonic<'a, F, const M: u32>(iter: impl Iterator<Item = &'a u32>, refutation: F) -> bool
+where
+  F: Fn(u32, u32) -> bool,
+{
+  iter
+    .tuple_windows::<(_, _)>()
+    .all(|(current, next)| !((refutation)(*current, *next) || current.abs_diff(*next) > M))
 }
 
 fn refutes<F, const M: u32>(current: u32, next: u32, refutation: &F) -> bool
@@ -128,9 +163,25 @@ mod tests {
         1 3 2 4 5
         8 6 4 4 1
         1 3 6 7 9
+        16 18 20 22 23 22
       ",
     );
     assert!(matches!(result, Some(5)));
+  }
+
+  #[test]
+  fn test_part_one_advanced() {
+    let reports = reports(
+      "
+        9 10 12 13 13
+      ",
+      0,
+    )
+    .collect_vec();
+    assert_eq!(
+      vec![false],
+      reports.into_iter().map(|report| report.safe).collect_vec()
+    )
   }
 
   #[test]
@@ -145,13 +196,15 @@ mod tests {
         1 3 6 7 9
         9 3 4 5 6
         1 5 6 7 9
+        16 18 20 22 23 22
+        9 10 12 13 13
       ",
       1,
     )
     .collect_vec();
     dbg!(&reports);
     assert_eq!(
-      vec![true, false, false, true, true, true, true, true],
+      vec![true, false, false, true, true, true, true, true, true],
       reports.into_iter().map(|report| report.safe).collect_vec()
     )
   }
