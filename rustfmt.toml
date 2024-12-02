@@ -1,0 +1,7 @@
+brace_style = "PreferSameLine"
+edition = "2021"
+group_imports = "StdExternalCrate"
+reorder_imports = true
+reorder_impl_items = true
+tab_spaces = 2
+where_single_line = true
