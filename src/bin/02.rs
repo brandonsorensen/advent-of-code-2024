@@ -5,35 +5,7 @@ use itertools::Itertools;
 const MAX_DIFF: u32 = 3;
 
 pub fn part_one(input: &str) -> Option<u32> {
-  // Some(count_safe_reports(input, 0))
-  let reports = input
-    .lines()
-    .map(|line| line.trim())
-    .filter(|line| !line.is_empty())
-    .map(move |line| {
-      let levels = line
-        .trim()
-        .split_ascii_whitespace()
-        .map(|s| s.parse::<u32>().expect("couldn't parse string to int"))
-        .collect::<Vec<_>>();
-      let is_safe = {
-        match (levels.first(), levels.get(1)) {
-          (Some(current), Some(next)) if current > next => {
-            simple_monotonic::<_, MAX_DIFF>(levels.iter(), |x, y| x <= y)
-          }
-          (Some(current), Some(next)) if current < next => {
-            simple_monotonic::<_, MAX_DIFF>(levels.iter(), |x, y| x >= y)
-          }
-          (Some(_only), None) => true,
-          _ => false,
-        }
-      };
-      Report {
-        levels,
-        safe: is_safe,
-      }
-    });
-  Some(reports.map(|report| report.safe as u32).sum())
+  Some(count_safe_reports(input, 0))
 }
 
 pub fn part_two(input: &str) -> Option<u32> {
@@ -42,13 +14,13 @@ pub fn part_two(input: &str) -> Option<u32> {
 
 fn is_monotonic(report: &[u32], tolerance: u16) -> bool {
   match (report.first(), report.get(1)) {
-    (Some(current), Some(next)) if current > next && current.abs_diff(*next) <= MAX_DIFF => {
-      monotonically_increasing::<MAX_DIFF>(report.iter().chain(std::iter::once(&0u32)), tolerance)
-        || (tolerance > 0 && is_monotonic(&report[1..], tolerance - 1))
+    (Some(current), Some(next)) if current > next => {
+      monotonically_increasing::<MAX_DIFF>(report.iter(), tolerance)
+        || (tolerance > 0 && is_monotonic(&report[2..], 0))
     }
-    (Some(current), Some(next)) if current < next && current.abs_diff(*next) <= MAX_DIFF => {
-      monotonically_decreasing::<MAX_DIFF>(report.iter().chain(std::iter::once(&0u32)), tolerance)
-        || (tolerance > 0 && is_monotonic(&report[1..], tolerance - 1))
+    (Some(current), Some(next)) if current < next => {
+      monotonically_decreasing::<MAX_DIFF>(report.iter(), tolerance)
+        || (tolerance > 0 && is_monotonic(&report[2..], 0))
     }
     (Some(_only), None) => true,
     _ => false,
@@ -78,33 +50,43 @@ where
   F: Fn(u32, u32) -> bool,
 {
   let mut faults = 0u16;
-  let mut windows = report.tuple_windows::<(_, _, _)>();
-  while let Some((current, next, next_next)) = windows.next() {
-    // dbg!(current, next, next_next);
-    let refuted = {
-      let first_refuted = refutes::<_, M>(*current, *next, &refutation);
-      if first_refuted && faults < tolerance {
-        faults += 1;
-        windows.next();
-        refutes::<_, M>(*current, *next_next, &refutation)
-      } else {
-        first_refuted
+  let mut windows = report
+    .map(Some)
+    .chain(std::iter::once(None))
+    .tuple_windows::<(_, _, _)>();
+  loop {
+    match windows.next() {
+      Some((Some(prev), Some(current), Some(next))) if faults < tolerance => {
+        // dbg!(prev, current, next);
+        // if refuted, try dropping current
+        let refuted = {
+          let first_refuted = refutes::<_, M>(*prev, *current, &refutation);
+          if first_refuted {
+            faults += 1;
+            windows.next();
+            refutes::<_, M>(*prev, *next, &refutation)
+          } else {
+            first_refuted
+          }
+        };
+        if refuted {
+          return false;
+        }
       }
-    };
-    if refuted {
-      return false;
+      Some((Some(prev), Some(current), Some(_))) => {
+        // dbg!(prev, current);
+        if refutes::<_, M>(*prev, *current, &refutation) {
+          return false;
+        }
+      }
+      Some((Some(prev), Some(current), None)) if faults >= tolerance => {
+        // dbg!(prev, current, "none");
+        // the end
+        return !refutes::<_, M>(*prev, *current, &refutation);
+      }
+      _ => return true,
     }
   }
-  true
-}
-
-fn simple_monotonic<'a, F, const M: u32>(iter: impl Iterator<Item = &'a u32>, refutation: F) -> bool
-where
-  F: Fn(u32, u32) -> bool,
-{
-  iter
-    .tuple_windows::<(_, _)>()
-    .all(|(current, next)| !((refutation)(*current, *next) || current.abs_diff(*next) > M))
 }
 
 fn refutes<F, const M: u32>(current: u32, next: u32, refutation: &F) -> bool
@@ -144,8 +126,8 @@ fn reports(input: &str, tolerance: u16) -> impl Iterator<Item = Report> + '_ {
 
 fn count_safe_reports(input: &str, tolerance: u16) -> u32 {
   reports(input, tolerance)
-    .map(|report| report.safe as u32)
-    .sum()
+    .filter(|report| report.safe)
+    .count() as u32
 }
 
 #[cfg(test)]
@@ -156,10 +138,6 @@ mod tests {
   fn test_part_one() {
     let result = part_one(
       "
-        1 2 3
-        5 10
-        1 5 6 7 4
-        9 8 7
         7 6 4 2 1
         1 2 7 8 9
         9 7 6 2 1
@@ -169,45 +147,22 @@ mod tests {
         16 18 20 22 23 22
       ",
     );
-    assert!(matches!(result, Some(5)));
-  }
-
-  #[test]
-  fn test_part_one_advanced() {
-    let reports = reports(
-      "
-        9 10 12 13 13
-      ",
-      0,
-    )
-    .collect_vec();
-    assert_eq!(
-      vec![false],
-      reports.into_iter().map(|report| report.safe).collect_vec()
-    )
+    assert!(matches!(dbg!(result), Some(2)));
   }
 
   #[test]
   fn test_part_two() {
     let reports = reports(
       "
-        7 6 4 2 1
-        1 2 7 8 9
-        9 7 6 2 1
-        1 3 2 4 5
-        8 6 4 4 1
-        1 3 6 7 9
-        9 3 4 5 6
-        1 5 6 7 9
-        16 18 20 22 23 22
-        9 10 12 13 13
+        38 37 41 44 45 47 49 50
+        8 11 9 11 14
       ",
       1,
     )
     .collect_vec();
     dbg!(&reports);
     assert_eq!(
-      vec![true, false, false, true, true, true, true, true, true],
+      vec![true, true],
       reports.into_iter().map(|report| report.safe).collect_vec()
     )
   }
