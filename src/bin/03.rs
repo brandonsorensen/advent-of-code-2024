@@ -39,15 +39,19 @@ pub fn part_two_no_opt(input: &str) -> u32 {
     .fold(State::default(), |state, cap| {
       // 3 = do, 4 = n't, 5 = lhs, 6 = rhs
       match (cap.get(3), cap.get(4), cap.get(5), cap.get(6)) {
+        // enabled: do multiply
         (None, None, Some(lhs), Some(rhs)) if state.enabled => State {
           sum: state.sum + match_to_int(lhs) * match_to_int(rhs),
           enabled: state.enabled,
         },
+        // disabled: do nothing
         (None, None, Some(_lhs), Some(_rhs)) => state,
+        // set state to enabled
         (Some(_do), None, None, None) => State {
           sum: state.sum,
           enabled: true,
         },
+        // set state to disabled
         (Some(_do), Some(_not), None, None) => State {
           sum: state.sum,
           enabled: false,
