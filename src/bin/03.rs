@@ -10,16 +10,13 @@ use {
 pub fn part_one(input: &str) -> Option<u32> {
   let output = input
     .lines()
-    .flat_map(|line| {
-      mul_regex().captures_iter(line).map(|cap| {
-        let (_, [lhs, rhs]) = cap.extract();
-        (
-          lhs.parse::<u32>().expect("couldn't parse input"),
-          rhs.parse::<u32>().expect("couldn't parse input"),
-        )
-      })
+    .flat_map(|line| mul_regex().captures_iter(line))
+    .map(|cap| {
+      let (_, [lhs, rhs]) = cap.extract();
+      let lhs_u32 = lhs.parse::<u32>().expect("couldn't parse input");
+      let rhs_u32 = rhs.parse::<u32>().expect("couldn't parse input");
+      lhs_u32 * rhs_u32
     })
-    .map(|(lhs, rhs)| lhs * rhs)
     .sum();
   Some(output)
 }
