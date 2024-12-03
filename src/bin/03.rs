@@ -43,6 +43,7 @@ pub fn part_two_no_opt(input: &str) -> u32 {
           sum: state.sum + match_to_int(lhs) * match_to_int(rhs),
           enabled: state.enabled,
         },
+        (None, None, Some(_lhs), Some(_rhs)) => state,
         (Some(_do), None, None, None) => State {
           sum: state.sum,
           enabled: true,
@@ -51,7 +52,6 @@ pub fn part_two_no_opt(input: &str) -> u32 {
           sum: state.sum,
           enabled: false,
         },
-        (None, None, Some(_lhs), Some(_rhs)) => state,
         _ => unreachable!(),
       }
     })
