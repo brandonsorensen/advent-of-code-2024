@@ -43,11 +43,11 @@ pub fn part_two(input: &str) -> Option<u32> {
 fn is_monotonic(report: &[u32], tolerance: u16) -> bool {
   match (report.first(), report.get(1)) {
     (Some(current), Some(next)) if current > next && current.abs_diff(*next) <= MAX_DIFF => {
-      monotonically_increasing::<MAX_DIFF>(report, tolerance)
+      monotonically_increasing::<MAX_DIFF>(report.iter().chain(std::iter::once(&0u32)), tolerance)
         || (tolerance > 0 && is_monotonic(&report[1..], tolerance - 1))
     }
     (Some(current), Some(next)) if current < next && current.abs_diff(*next) <= MAX_DIFF => {
-      monotonically_decreasing::<MAX_DIFF>(report, tolerance)
+      monotonically_decreasing::<MAX_DIFF>(report.iter().chain(std::iter::once(&0u32)), tolerance)
         || (tolerance > 0 && is_monotonic(&report[1..], tolerance - 1))
     }
     (Some(_only), None) => true,
@@ -55,22 +55,32 @@ fn is_monotonic(report: &[u32], tolerance: u16) -> bool {
   }
 }
 
-fn monotonically_increasing<'a, const M: u32>(report: &[u32], tolerance: u16) -> bool {
+fn monotonically_increasing<'a, const M: u32>(
+  report: impl Iterator<Item = &'a u32>,
+  tolerance: u16,
+) -> bool {
   monotonic::<_, MAX_DIFF>(report, |x, y| x <= y, tolerance)
 }
 
-fn monotonically_decreasing<'a, const M: u32>(report: &[u32], tolerance: u16) -> bool {
+fn monotonically_decreasing<'a, const M: u32>(
+  report: impl Iterator<Item = &'a u32>,
+  tolerance: u16,
+) -> bool {
   monotonic::<_, MAX_DIFF>(report, |x, y| x >= y, tolerance)
 }
 
-fn monotonic<'a, F, const M: u32>(report: &[u32], refutation: F, tolerance: u16) -> bool
+fn monotonic<'a, F, const M: u32>(
+  report: impl Iterator<Item = &'a u32>,
+  refutation: F,
+  tolerance: u16,
+) -> bool
 where
   F: Fn(u32, u32) -> bool,
 {
   let mut faults = 0u16;
-  let mut windows = report.iter().tuple_windows::<(_, _, _)>();
+  let mut windows = report.tuple_windows::<(_, _, _)>();
   while let Some((current, next, next_next)) = windows.next() {
-    dbg!(current, next, next_next);
+    // dbg!(current, next, next_next);
     let refuted = {
       let first_refuted = refutes::<_, M>(*current, *next, &refutation);
       if first_refuted && faults < tolerance {
@@ -82,13 +92,6 @@ where
       }
     };
     if refuted {
-      return false;
-    }
-  }
-  if report.len() > 2 {
-    let penultimate = report.get(report.len() - 2).unwrap();
-    let last = report.last().unwrap();
-    if refutes::<_, M>(*penultimate, *last, &refutation) {
       return false;
     }
   }
