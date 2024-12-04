@@ -10,11 +10,12 @@ const TARGET_WORD: &str = "XMAS";
 const WORD_LEN: usize = TARGET_WORD.len();
 
 pub fn part_one(input: &str) -> Option<u32> {
-  Some(part_one_no_opt(input))
+  // Some(other::count_xmas_words(&other::read_input(input)) as u32)
+  Some(part_one_no_opt(input, LINE_LENGTH))
 }
 
-fn part_one_no_opt(input: &str) -> u32 {
-  let array = initialize_array(input);
+fn part_one_no_opt(input: &str, line_length: usize) -> u32 {
+  let array = initialize_array(input, line_length);
   let (n_rows, n_cols) = array.dim();
   (0..n_rows)
     .cartesian_product(0..n_cols)
@@ -38,17 +39,20 @@ enum Orientation {
 impl Orientation {
   fn enumerate() -> impl Iterator<Item = Self> {
     let files = Direction::iter().map(Self::File);
-    let diagonals = iproduct!(Direction::vertical(), Direction::horizontal())
-      .map(|(vertical, horizontal)| Self::Diagonal(vertical, horizontal));
-    files.chain(diagonals)
+    files.chain(Self::diagonals())
+  }
+
+  fn diagonals() -> impl Iterator<Item = Self> {
+    iproduct!(Direction::vertical(), Direction::horizontal())
+      .map(|(vertical, horizontal)| Self::Diagonal(vertical, horizontal))
   }
 
   fn in_bounds(&self, row: usize, column: usize, n_rows: usize, n_cols: usize) -> bool {
     match self {
-      Orientation::File(direction) => direction.allows_index(row, column, n_rows, n_cols),
+      Orientation::File(direction) => direction.in_bounds(row, column, n_rows, n_cols),
       Orientation::Diagonal(vertical, horizontal) => {
-        vertical.allows_index(row, column, n_rows, n_cols)
-          && horizontal.allows_index(row, column, n_rows, n_cols)
+        vertical.in_bounds(row, column, n_rows, n_cols)
+          && horizontal.in_bounds(row, column, n_rows, n_cols)
       }
     }
   }
@@ -63,12 +67,12 @@ enum Direction {
 }
 
 impl Direction {
-  fn allows_index(&self, row: usize, column: usize, n_rows: usize, n_cols: usize) -> bool {
+  fn in_bounds(&self, row: usize, column: usize, n_rows: usize, n_cols: usize) -> bool {
     match self {
-      Direction::Up => row >= WORD_LEN,
-      Direction::Down => row + WORD_LEN < n_rows,
-      Direction::Left => column >= WORD_LEN,
-      Direction::Right => column + WORD_LEN < n_cols,
+      Direction::Up => row >= WORD_LEN - 1,
+      Direction::Down => row + WORD_LEN <= n_rows,
+      Direction::Left => column >= WORD_LEN - 1,
+      Direction::Right => column + WORD_LEN <= n_cols,
     }
   }
 
@@ -85,6 +89,9 @@ fn count_xmas(array: &ndarray::Array2<char>, row: usize, column: usize) -> u32 {
   Orientation::enumerate()
     .map(|orientation| {
       if let Some(next_chars) = slice_array(array, orientation, row, column) {
+        if TARGET_WORD.chars().zip_eq(next_chars).all(|(x, y)| x == y) {
+          println!("{row},{column}");
+        }
         TARGET_WORD.chars().zip_eq(next_chars).all(|(x, y)| x == y) as u32
       } else {
         0
@@ -105,7 +112,7 @@ fn slice_array(
       if Orientation::File(Direction::Up).in_bounds(row, column, n_rows, n_cols) =>
     {
       Some(squeeze(
-        &array.slice(s![row - WORD_LEN + 1..=row; -1, column]),
+        &array.slice(s![row - (WORD_LEN - 1)..=row; -1, column]),
       ))
     }
     Orientation::File(Direction::Down)
@@ -117,7 +124,7 @@ fn slice_array(
       if Orientation::File(Direction::Left).in_bounds(row, column, n_rows, n_cols) =>
     {
       Some(squeeze(
-        &array.slice(s![row, column - WORD_LEN + 1..=column; -1]),
+        &array.slice(s![row, column - (WORD_LEN - 1)..=column; -1]),
       ))
     }
     Orientation::File(Direction::Right)
@@ -133,7 +140,7 @@ fn slice_array(
     {
       Some(squeeze(
         &array
-          .slice(s![row - WORD_LEN + 1..=row; -1, column..column + WORD_LEN])
+          .slice(s![row - (WORD_LEN - 1)..=row; -1, column..column + WORD_LEN])
           .diag(),
       ))
     }
@@ -141,9 +148,10 @@ fn slice_array(
       if Orientation::Diagonal(Direction::Up, Direction::Left)
         .in_bounds(row, column, n_rows, n_cols) =>
     {
+      dbg!(row, column);
       Some(squeeze(
         &array
-          .slice(s![row - WORD_LEN + 1 ..=row; -1, column - WORD_LEN + 1..=column; -1])
+          .slice(s![row - (WORD_LEN - 1) ..=row; -1, column - (WORD_LEN - 1)..=column; -1])
           .diag(),
       ))
     }
@@ -163,7 +171,7 @@ fn slice_array(
     {
       Some(squeeze(
         &array
-          .slice(s![row..row + WORD_LEN, column - WORD_LEN + 1..=column; -1])
+          .slice(s![row..row + WORD_LEN, column - (WORD_LEN - 1)..=column; -1])
           .diag(),
       ))
     }
@@ -187,16 +195,16 @@ fn squeeze(array: &ArrayBase<ndarray::ViewRepr<&char>, Dim<[usize; 1]>>) -> [cha
   array.to_vec().try_into().expect("invalid slice")
 }
 
-fn initialize_array(input: &str) -> ndarray::Array2<char> {
+fn initialize_array(input: &str, line_length: usize) -> ndarray::Array2<char> {
   let mut n_lines = 0;
   let char_stream = input
     .lines()
     .flat_map(|line| {
       n_lines += 1;
-      line.chars()
+      line.trim().chars()
     })
     .collect::<Vec<_>>();
-  ndarray::Array2::from_shape_vec((n_lines, LINE_LENGTH), char_stream)
+  ndarray::Array2::from_shape_vec((n_lines, line_length), char_stream)
     .expect("couldn't initialize array")
 }
 
@@ -207,6 +215,48 @@ pub fn part_two(input: &str) -> Option<u32> {
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  #[test]
+  fn test_slicing() {
+    let input = "
+      XMASINGINSAMX
+      MMASISGINGING
+      AMASINAINGING
+      SMGSINGMNGING
+      XMBSINGIXGING
+      XMBSINGINQAMX
+    "
+    .trim();
+    let line_length = input.lines().next().unwrap().trim().len();
+    assert_eq!(6, part_one_no_opt(input, line_length));
+  }
+
+  #[test]
+  fn test_input_sample() {
+    let input = "
+      SMXMMAXXXXMMMMSMMASASMSXMMAMSSMXSMMXMASA
+      MASMMSXMMMMAMSMAXSAMXAXAXXAXSASAMASMMASA
+      MAMAAMXMAXSASAMMMXAMMMMAMMSMSAMXSAMXMASA
+      MAMMMXAMXMXXSASXAXAMSXMXSAAXMMMXMXSXMXSM
+      SSSXXSMMSMMXSAAMSSSMMXSAMMSMMMMMMASASAMA
+      AAXMASMAAASAMXMAMMAAXXMASAXXMAAAXMSAMXSA
+      MXMMAMASMMMXSXSASXSMMMMXMMSASMSMSAMXMXMM
+      MMXMAXXMMMAXMXMASXAXAAMMMMSAMXAMXMMAMXMM
+    "
+    .trim();
+    let line_length = input.lines().next().unwrap().trim().len();
+    assert_eq!(6, part_one_no_opt(input, line_length));
+  }
+
+  #[test]
+  fn test_single_row() {
+    let input = "MAMMMXAMXMXXSASXAXAMSXMXSAAXMMMXMXSXMXS\
+      MMXMAXAMXXXXXSSSSXAMXXAMMAMXAXAXSAMMSMMM\
+      SMMSMSAMAAXMAMXSMSXXAXMSSSSMAXSAMXMMMSXA\
+      XAXAMMXMASXAMAMSXAMMX";
+    let line_length = input.len();
+    assert_eq!(2, part_one_no_opt(input, line_length));
+  }
 
   #[test]
   fn test_part_one() {
