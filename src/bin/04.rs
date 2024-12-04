@@ -6,15 +6,14 @@ use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
 const LINE_LENGTH: usize = 140;
-const TARGET_WORD: &str = "XMAS";
-const WORD_LEN: usize = TARGET_WORD.len();
 
 pub fn part_one(input: &str) -> Option<u32> {
-  // Some(other::count_xmas_words(&other::read_input(input)) as u32)
   Some(part_one_no_opt(input, LINE_LENGTH))
 }
 
 fn part_one_no_opt(input: &str, line_length: usize) -> u32 {
+  const XMAS: &str = "XMAS";
+  const XMAS_LEN: usize = XMAS.len();
   let array = initialize_array(input, line_length);
   let (n_rows, n_cols) = array.dim();
   (0..n_rows)
@@ -22,7 +21,7 @@ fn part_one_no_opt(input: &str, line_length: usize) -> u32 {
     .map(|(row, column)| {
       let target_char = array.get((row, column)).expect("index out of bounds");
       if *target_char == 'X' {
-        count_xmas(&array, row, column)
+        count_word::<XMAS_LEN>(XMAS, &array, row, column)
       } else {
         0
       }
@@ -47,12 +46,19 @@ impl Orientation {
       .map(|(vertical, horizontal)| Self::Diagonal(vertical, horizontal))
   }
 
-  fn in_bounds(&self, row: usize, column: usize, n_rows: usize, n_cols: usize) -> bool {
+  fn in_bounds(
+    &self,
+    offset: usize,
+    row: usize,
+    column: usize,
+    n_rows: usize,
+    n_cols: usize,
+  ) -> bool {
     match self {
-      Orientation::File(direction) => direction.in_bounds(row, column, n_rows, n_cols),
+      Orientation::File(direction) => direction.in_bounds(offset, row, column, n_rows, n_cols),
       Orientation::Diagonal(vertical, horizontal) => {
-        vertical.in_bounds(row, column, n_rows, n_cols)
-          && horizontal.in_bounds(row, column, n_rows, n_cols)
+        vertical.in_bounds(offset, row, column, n_rows, n_cols)
+          && horizontal.in_bounds(offset, row, column, n_rows, n_cols)
       }
     }
   }
@@ -67,12 +73,19 @@ enum Direction {
 }
 
 impl Direction {
-  fn in_bounds(&self, row: usize, column: usize, n_rows: usize, n_cols: usize) -> bool {
+  fn in_bounds(
+    &self,
+    offset: usize,
+    row: usize,
+    column: usize,
+    n_rows: usize,
+    n_cols: usize,
+  ) -> bool {
     match self {
-      Direction::Up => row >= WORD_LEN - 1,
-      Direction::Down => row + WORD_LEN <= n_rows,
-      Direction::Left => column >= WORD_LEN - 1,
-      Direction::Right => column + WORD_LEN <= n_cols,
+      Direction::Up => row >= offset - 1,
+      Direction::Down => row + offset <= n_rows,
+      Direction::Left => column >= offset - 1,
+      Direction::Right => column + offset <= n_cols,
     }
   }
 
@@ -85,14 +98,17 @@ impl Direction {
   }
 }
 
-fn count_xmas(array: &ndarray::Array2<char>, row: usize, column: usize) -> u32 {
+fn count_word<const LEN: usize>(
+  word: &str,
+  array: &ndarray::Array2<char>,
+  row: usize,
+  column: usize,
+) -> u32 {
+  assert_eq!(word.len(), LEN);
   Orientation::enumerate()
     .map(|orientation| {
-      if let Some(next_chars) = slice_array(array, orientation, row, column) {
-        if TARGET_WORD.chars().zip_eq(next_chars).all(|(x, y)| x == y) {
-          println!("{row},{column}");
-        }
-        TARGET_WORD.chars().zip_eq(next_chars).all(|(x, y)| x == y) as u32
+      if let Some(next_chars) = slice_array::<LEN>(array, orientation, row, column) {
+        word.chars().zip_eq(next_chars).all(|(x, y)| x == y) as u32
       } else {
         0
       }
@@ -100,78 +116,73 @@ fn count_xmas(array: &ndarray::Array2<char>, row: usize, column: usize) -> u32 {
     .sum()
 }
 
-fn slice_array(
+fn slice_array<const LEN: usize>(
   array: &ndarray::Array2<char>,
   orientation: Orientation,
   row: usize,
   column: usize,
-) -> Option<[char; WORD_LEN]> {
+) -> Option<[char; LEN]> {
   let (n_rows, n_cols) = array.dim();
   match orientation {
     Orientation::File(Direction::Up)
-      if Orientation::File(Direction::Up).in_bounds(row, column, n_rows, n_cols) =>
+      if Orientation::File(Direction::Up).in_bounds(LEN, row, column, n_rows, n_cols) =>
     {
-      Some(squeeze(
-        &array.slice(s![row - (WORD_LEN - 1)..=row; -1, column]),
-      ))
+      Some(squeeze(&array.slice(s![row - (LEN - 1)..=row; -1, column])))
     }
     Orientation::File(Direction::Down)
-      if Orientation::File(Direction::Down).in_bounds(row, column, n_rows, n_cols) =>
+      if Orientation::File(Direction::Down).in_bounds(LEN, row, column, n_rows, n_cols) =>
     {
-      Some(squeeze(&array.slice(s![row..row + WORD_LEN, column])))
+      Some(squeeze(&array.slice(s![row..row + LEN, column])))
     }
     Orientation::File(Direction::Left)
-      if Orientation::File(Direction::Left).in_bounds(row, column, n_rows, n_cols) =>
+      if Orientation::File(Direction::Left).in_bounds(LEN, row, column, n_rows, n_cols) =>
     {
       Some(squeeze(
-        &array.slice(s![row, column - (WORD_LEN - 1)..=column; -1]),
+        &array.slice(s![row, column - (LEN - 1)..=column; -1]),
       ))
     }
     Orientation::File(Direction::Right)
-      if Orientation::File(Direction::Right).in_bounds(row, column, n_rows, n_cols) =>
+      if Orientation::File(Direction::Right).in_bounds(LEN, row, column, n_rows, n_cols) =>
     {
       Some(squeeze_contiguous(
-        &array.slice(s![row, column..column + WORD_LEN]),
+        &array.slice(s![row, column..column + LEN]),
       ))
     }
     Orientation::Diagonal(Direction::Up, Direction::Right)
       if Orientation::Diagonal(Direction::Up, Direction::Right)
-        .in_bounds(row, column, n_rows, n_cols) =>
+        .in_bounds(LEN, row, column, n_rows, n_cols) =>
     {
       Some(squeeze(
         &array
-          .slice(s![row - (WORD_LEN - 1)..=row; -1, column..column + WORD_LEN])
+          .slice(s![row - (LEN - 1)..=row; -1, column..column + LEN])
           .diag(),
       ))
     }
     Orientation::Diagonal(Direction::Up, Direction::Left)
       if Orientation::Diagonal(Direction::Up, Direction::Left)
-        .in_bounds(row, column, n_rows, n_cols) =>
+        .in_bounds(LEN, row, column, n_rows, n_cols) =>
     {
-      dbg!(row, column);
       Some(squeeze(
         &array
-          .slice(s![row - (WORD_LEN - 1) ..=row; -1, column - (WORD_LEN - 1)..=column; -1])
+          .slice(s![row - (LEN - 1) ..=row; -1, column - (LEN - 1)..=column; -1])
           .diag(),
       ))
     }
     Orientation::Diagonal(Direction::Down, Direction::Right)
       if Orientation::Diagonal(Direction::Down, Direction::Right)
-        .in_bounds(row, column, n_rows, n_cols) =>
+        .in_bounds(LEN, row, column, n_rows, n_cols) =>
     {
       Some(squeeze(
-        &array
-          .slice(s![row..row + WORD_LEN, column..column + WORD_LEN])
-          .diag(),
+        &array.slice(s![row..row + LEN, column..column + LEN]).diag(),
       ))
     }
     Orientation::Diagonal(Direction::Down, Direction::Left)
       if Orientation::Diagonal(Direction::Down, Direction::Left)
-        .in_bounds(row, column, n_rows, n_cols) =>
+        .in_bounds(LEN, row, column, n_rows, n_cols) =>
     {
       Some(squeeze(
         &array
-          .slice(s![row..row + WORD_LEN, column - (WORD_LEN - 1)..=column; -1])
+          .slice(s![row..row + LEN, column - (LEN - 1)..=column; -1])
           .diag(),
       ))
     }
@@ -181,9 +192,9 @@ fn slice_array(
 
 /// Squeezes a view with a contiguous layout. Slightly more efficient than
 /// naive squeeze.
-fn squeeze_contiguous(
+fn squeeze_contiguous<const LEN: usize>(
   array: &ArrayBase<ndarray::ViewRepr<&char>, Dim<[usize; 1]>>,
-) -> [char; WORD_LEN] {
+) -> [char; LEN] {
   array
     .as_slice()
     .expect("couldn't convert to slice")
@@ -191,7 +202,9 @@ fn squeeze_contiguous(
     .expect("invalid slice")
 }
 
-fn squeeze(array: &ArrayBase<ndarray::ViewRepr<&char>, Dim<[usize; 1]>>) -> [char; WORD_LEN] {
+fn squeeze<const LEN: usize>(
+  array: &ArrayBase<ndarray::ViewRepr<&char>, Dim<[usize; 1]>>,
+) -> [char; LEN] {
   array.to_vec().try_into().expect("invalid slice")
 }
 
@@ -209,7 +222,59 @@ fn initialize_array(input: &str, line_length: usize) -> ndarray::Array2<char> {
 }
 
 pub fn part_two(input: &str) -> Option<u32> {
-  None
+  Some(part_two_no_opt(input, LINE_LENGTH))
+}
+
+fn part_two_no_opt(input: &str, line_length: usize) -> u32 {
+  const MAS: &str = "MAS";
+  const MAS_LEN: usize = MAS.len();
+  let array = initialize_array(input, line_length);
+  let (n_rows, n_cols) = array.dim();
+  (1..n_rows - 1)
+    .cartesian_product(1..n_cols - 1)
+    .map(|(row, column)| {
+      let target_char = array.get((row, column)).expect("index out of bounds");
+      if *target_char == 'A' {
+        count_ex::<MAS_LEN>(MAS, &array, row, column).eq(&2) as u32
+      } else {
+        0
+      }
+    })
+    .sum()
+}
+
+fn count_ex<const LEN: usize>(
+  word: &str,
+  array: &ndarray::Array2<char>,
+  row: usize,
+  column: usize,
+) -> u32 {
+  assert_eq!(word.len(), LEN);
+  (0..2)
+    .map(|_| {
+      let up_to_right = squeeze::<LEN>(
+        &array
+          .slice(s![row - 1..=row + 1; -1, column - 1..=column + 1])
+          .diag(),
+      );
+      let down_from_left = squeeze::<LEN>(
+        &array
+          .slice(s![row - 1..=row + 1, column - 1..=column + 1])
+          .diag(),
+      );
+      // dbg!(up_to_right, down_from_left);
+      let n_matching: u32 = vec![
+        word.chars().eq(up_to_right),
+        word.chars().rev().eq(up_to_right),
+        word.chars().eq(down_from_left),
+        word.chars().rev().eq(down_from_left),
+      ]
+      .into_iter()
+      .map(|is_matching| is_matching as u32)
+      .sum();
+      (n_matching >= 2) as u32
+    })
+    .sum()
 }
 
 #[cfg(test)]
