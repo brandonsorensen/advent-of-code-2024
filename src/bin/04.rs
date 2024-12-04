@@ -252,17 +252,14 @@ fn count_ex<const LEN: usize>(
   assert_eq!(word.len(), LEN);
   (0..2)
     .map(|_| {
+      let row_range = row - 1..=row + 1;
+      let col_range = column - 1..=column + 1;
       let up_to_right = squeeze::<LEN>(
         &array
-          .slice(s![row - 1..=row + 1; -1, column - 1..=column + 1])
+          .slice(s![row_range.clone(); -1, col_range.clone()])
           .diag(),
       );
-      let down_from_left = squeeze::<LEN>(
-        &array
-          .slice(s![row - 1..=row + 1, column - 1..=column + 1])
-          .diag(),
-      );
-      // dbg!(up_to_right, down_from_left);
+      let down_from_left = squeeze::<LEN>(&array.slice(s![row_range, col_range]).diag());
       let n_matching: u32 = vec![
         word.chars().eq(up_to_right),
         word.chars().rev().eq(up_to_right),
