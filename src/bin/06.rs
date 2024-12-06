@@ -4,7 +4,7 @@ use std::{
   cmp::{max, min},
   collections::HashSet,
   io::Write,
-  ops::Add,
+  ops::{Add, AddAssign},
 };
 
 use itertools::Itertools;
@@ -62,10 +62,7 @@ fn try_advance(
   let occupied = grid
     .get(next.to_tuple_usize())
     .ok_or(Impediment::Boundary)?;
-  let mask_or_occupied = *occupied
-    || mask
-      .map(|tup| position.to_tuple().eq(&tup))
-      .unwrap_or(false);
+  let mask_or_occupied = *occupied || mask.map(|tup| next.to_tuple().eq(&tup)).unwrap_or(false);
   if mask_or_occupied {
     Err(Impediment::Occupied(position))
   } else {
@@ -79,7 +76,7 @@ enum Impediment {
   Occupied(Position),
 }
 
-#[cfg(debug_assertions)]
+#[cfg(any(test, debug_assertions))]
 fn print_board(
   position: &Position,
   grid: &Array2<bool>,
@@ -90,21 +87,28 @@ fn print_board(
   let len = grid.dim().0;
   let row_min = max(0, position.row.saturating_sub(half) as usize);
   let row_max = min(len, row_min.add(window_size) as usize);
+  let row_range = row_min..row_max;
   let col_min = max(0, position.column.saturating_sub(half) as usize);
   let col_max = min(len, col_min.add(window_size) as usize);
+  let col_range = col_min..col_max;
   let rel_pos = (
     min(half, position.row) as usize,
     min(half, position.column) as usize,
   );
+  let mask_rel = mask
+    .filter(|(row, col)| {
+      row_range.contains(&(*row as usize)) && col_range.contains(&(*col as usize))
+    })
+    .map(|(row, col)| (min(half, *row) as usize, min(half, *col) as usize));
   dbg!(&rel_pos);
-  let view = grid.slice(ndarray::s![row_min..row_max, col_min..col_max,]);
+  let view = grid.slice(ndarray::s![row_range, col_range,]);
   let mut lock = std::io::stdout().lock();
   for (i, row) in view.rows().into_iter().enumerate() {
     for (j, element) in row.into_iter().enumerate() {
       if *element {
         write!(lock, "#").unwrap();
-      // } else if mask.map(|m| *m == (i as u8, j as u8)).unwrap_or(false) {
-      //   write!(lock, "O").unwrap();
+      } else if mask_rel.map(|m| m == (i, j)).unwrap_or(false) {
+        write!(lock, "O").unwrap();
       } else if rel_pos == (i, j) {
         write!(lock, "{}", position.direction).unwrap();
       } else {
@@ -269,7 +273,7 @@ pub fn part_two_no_opt(input: &str, grid_dimensions: usize) -> u32 {
   sim_range
     .clone()
     .cartesian_product(sim_range)
-    // .par_bridge()
+    .par_bridge()
     .filter(|index| {
       *index != start_pos.to_tuple()
         && grid
@@ -288,16 +292,18 @@ fn run_simulation(
   start_position: &Position,
   obstacle_coord: (u8, u8),
 ) -> SimulationResult {
-  const CUTOFF: u8 = 1;
+  const CUTOFF: u8 = 5;
 
   let mut current_pos = start_position.clone();
-  let mut encountered_start = 0;
+  let mut heat_map = Array2::<u8>::zeros(grid.dim());
   while let Some(next_position) = get_next_position(current_pos, grid, Some(obstacle_coord)) {
-    #[cfg(debug_assertions)]
-    print_board(&next_position, grid, Some(&obstacle_coord), 11);
-    std::thread::sleep(std::time::Duration::from_millis(200));
-    encountered_start += (next_position.to_tuple().eq(&start_position.to_tuple())) as u8;
-    if encountered_start >= CUTOFF {
+    // #[cfg(test)]
+    // print_board(&next_position, grid, Some(&obstacle_coord), 11);
+    // #[cfg(test)]
+    // std::thread::sleep(std::time::Duration::from_millis(200));
+    heat_map[next_position.to_tuple_usize()] += 1;
+    let encounters = heat_map[next_position.to_tuple_usize()];
+    if encounters >= CUTOFF {
       return SimulationResult::Loop;
     }
     current_pos = next_position;
@@ -364,13 +370,28 @@ mod tests {
     let input = "\
       ......
       ....#.
-      .#....
+      ......
       ....#.
       #^....
       ...#..
     "
     .trim();
     let result = part_two_no_opt(input, 6);
-    assert_eq!(result, 1)
+    assert_eq!(result, 2)
+  }
+
+  #[test]
+  fn test_part_two_off_kilter() {
+    let input = "\
+      ......
+      ....#.
+      ......
+      #...#.
+      .^.#..
+      ......
+    "
+    .trim();
+    let result = part_two_no_opt(input, 6);
+    assert_eq!(result, 2)
   }
 }
