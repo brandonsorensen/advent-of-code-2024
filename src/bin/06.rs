@@ -1,8 +1,10 @@
 advent_of_code::solution!(6);
 
-use std::{collections::HashSet, ops::Add};
+use std::{collections::HashSet, io::Write, ops::Add};
 
+use itertools::Itertools;
 use ndarray::prelude::Array2;
+use rayon::prelude::*;
 
 const GRID_DIM: usize = 130;
 
@@ -14,17 +16,21 @@ pub fn part_one_no_opt(input: &str, grid_dimensions: usize) -> u32 {
   let (grid, start_pos) = read_grid(input, grid_dimensions);
   let mut seen = HashSet::<(u8, u8)>::from([start_pos.to_tuple()]);
   let mut current_pos = start_pos;
-  while let Some(next_position) = get_next_position(current_pos, &grid) {
+  while let Some(next_position) = get_next_position(current_pos, &grid, None) {
     seen.insert(next_position.to_tuple());
     current_pos = next_position;
   }
   seen.len().try_into().expect("couldn't cast usize to u32")
 }
 
-fn get_next_position(position: Position, grid: &Array2<bool>) -> Option<Position> {
+fn get_next_position(
+  position: Position,
+  grid: &Array2<bool>,
+  mask: Option<(u8, u8)>,
+) -> Option<Position> {
   let mut candidate = position;
   for _ in 0..3 {
-    match try_advance(candidate, grid) {
+    match try_advance(candidate, grid, mask) {
       Ok(next) => {
         return Some(next);
       }
@@ -42,12 +48,20 @@ fn get_next_position(position: Position, grid: &Array2<bool>) -> Option<Position
 /// Attempts to advance the position. If the position is off the grid,
 /// returns Impediment::Boundary. If the prospective next position is
 /// occupied, returns the original position.
-fn try_advance(position: Position, grid: &Array2<bool>) -> Result<Position, Impediment> {
+fn try_advance(
+  position: Position,
+  grid: &Array2<bool>,
+  mask: Option<(u8, u8)>,
+) -> Result<Position, Impediment> {
   let next = position.advance().ok_or(Impediment::Boundary)?;
   let occupied = grid
     .get(next.to_tuple_usize())
     .ok_or(Impediment::Boundary)?;
-  if *occupied {
+  let mask_or_occupied = *occupied
+    || mask
+      .map(|tup| position.to_tuple().eq(&tup))
+      .unwrap_or(false);
+  if mask_or_occupied {
     Err(Impediment::Occupied(position))
   } else {
     Ok(next)
@@ -58,6 +72,47 @@ fn try_advance(position: Position, grid: &Array2<bool>) -> Result<Position, Impe
 enum Impediment {
   Boundary,
   Occupied(Position),
+}
+
+#[cfg(debug_assertions)]
+fn print_board(
+  position: &Position,
+  grid: &Array2<bool>,
+  mask: Option<&(u8, u8)>,
+  window_size: usize,
+) {
+  let half = (window_size / 2) as u8;
+  let len = grid.dim().0;
+  let row_min = std::cmp::max(0, position.row.saturating_sub(half) as usize);
+  let row_max = std::cmp::min(len, row_min.add(window_size) as usize);
+  let col_min = std::cmp::max(0, position.column.saturating_sub(half) as usize);
+  let col_max = std::cmp::min(len, col_min.add(window_size) as usize);
+  let rel_pos = (
+    std::cmp::min(half, position.row) as usize,
+    std::cmp::max(half, position.column) as usize,
+  );
+  let view = grid.slice(ndarray::s![row_min..row_max, col_min..col_max,]);
+  let mut lock = std::io::stdout().lock();
+  for (i, row) in view.rows().into_iter().enumerate() {
+    for (j, element) in row.into_iter().enumerate() {
+      if *element {
+        write!(lock, "#").unwrap();
+      // } else if mask.map(|m| *m == (i as u8, j as u8)).unwrap_or(false) {
+      //   write!(lock, "O").unwrap();
+      } else if rel_pos == (i, j) {
+        write!(lock, "{}", position.direction).unwrap();
+      } else {
+        write!(lock, ".").unwrap();
+      }
+    }
+    writeln!(lock).unwrap();
+  }
+  writeln!(
+    lock,
+    "rows: ({}-{}) | columns: ({}-{})\n",
+    row_min, row_max, col_min, col_max
+  )
+  .unwrap();
 }
 
 fn read_grid(input: &str, grid_size: usize) -> (Array2<bool>, Position) {
@@ -87,7 +142,7 @@ fn read_grid(input: &str, grid_size: usize) -> (Array2<bool>, Position) {
   )
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct Position {
   row: u8,
   column: u8,
@@ -144,7 +199,7 @@ impl Add<Direction> for &Position {
   }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 enum Direction {
   Up,
   Down,
@@ -198,7 +253,55 @@ impl TryFrom<char> for Direction {
 }
 
 pub fn part_two(input: &str) -> Option<u32> {
-  None
+  Some(part_two_no_opt(input, GRID_DIM))
+}
+
+pub fn part_two_no_opt(input: &str, grid_dimensions: usize) -> u32 {
+  let (grid, start_pos) = read_grid(input, grid_dimensions);
+  debug_assert!(grid.dim().0 == grid.dim().1);
+  let sim_range = 0..(grid.dim().0 as u8);
+  sim_range
+    .clone()
+    .cartesian_product(sim_range)
+    // .par_bridge()
+    .filter(|index| {
+      *index != start_pos.to_tuple()
+        && grid
+          .get((index.0 as usize, index.1 as usize))
+          .is_some_and(|occupied| !*occupied)
+    })
+    .map(|index| match run_simulation(&grid, &start_pos, index) {
+      SimulationResult::Loop => 1,
+      SimulationResult::Exit => 0,
+    })
+    .sum()
+}
+
+fn run_simulation(
+  grid: &Array2<bool>,
+  start_position: &Position,
+  obstacle_coord: (u8, u8),
+) -> SimulationResult {
+  const CUTOFF: u8 = 1;
+
+  let mut current_pos = start_position.clone();
+  let mut encountered_start = 0;
+  while let Some(next_position) = get_next_position(current_pos, grid, Some(obstacle_coord)) {
+    #[cfg(debug_assertions)]
+    print_board(&next_position, grid, Some(&obstacle_coord), 10);
+    std::thread::sleep(std::time::Duration::from_millis(200));
+    encountered_start += (next_position.to_tuple().eq(&start_position.to_tuple())) as u8;
+    if encountered_start >= CUTOFF {
+      return SimulationResult::Loop;
+    }
+    current_pos = next_position;
+  }
+  SimulationResult::Exit
+}
+
+enum SimulationResult {
+  Loop,
+  Exit,
 }
 
 #[cfg(test)]
@@ -251,8 +354,17 @@ mod tests {
   }
 
   #[test]
-  fn test_part_two() {
-    let result = part_two(&advent_of_code::template::read_file("examples", DAY));
-    assert_eq!(result, None);
+  fn test_part_two_basic() {
+    let input = "\
+      ......
+      ....#.
+      .#....
+      ....#.
+      #^....
+      ...#..
+    "
+    .trim();
+    let result = part_two_no_opt(input, 6);
+    assert_eq!(result, 1)
   }
 }

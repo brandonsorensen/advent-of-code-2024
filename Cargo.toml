@@ -28,6 +28,7 @@ itertools = "0.13.0"
 ndarray = "0.16.1"
 petgraph = "0.6.5"
 pico-args = "0.5.0"
+rayon = "1.10.0"
 regex = "1.11.1"
 strum = { version = "0.26.3", features = ["strum_macros"] }
 strum_macros = "0.26.4"
