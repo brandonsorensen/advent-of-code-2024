@@ -1,11 +1,9 @@
 advent_of_code::solution!(5);
 
-use std::{collections::HashMap, usize};
+use std::collections::HashMap;
 
 use itertools::Itertools;
 use petgraph::graphmap::DiGraphMap;
-
-const INDEX_FACTOR: u32 = 100;
 
 pub fn part_one(input: &str) -> Option<u32> {
   Some(part_one_no_opt(input))
@@ -65,43 +63,17 @@ pub fn part_two_no_opt(input: &str) -> u32 {
   input
     .lines()
     .skip_while(|line| line.contains('|') || line.trim().is_empty())
-    .filter_map(|line| {
-      let mut page_orders = line
-        .trim()
+    .map(|line| {
+      line
         .split(',')
-        .map(|n| n.parse::<u32>().expect("invalid number"))
-        .enumerate()
-        .map(|(idx, num)| (num, idx as u32 * INDEX_FACTOR))
-        .collect::<HashMap<u32, u32>>();
-      debug_assert_ne!(page_orders.len() % 2, 0);
-      let mut in_order = true;
-      for (num, idx) in page_orders.clone().iter() {
-        for neighbor in graph.neighbors(*num) {
-          if let Some(neighbor_index) = page_orders.get(&neighbor) {
-            if neighbor_index < idx {
-              in_order = false;
-              page_orders.insert(neighbor, idx + 1);
-            }
-          }
-        }
-      }
-      if in_order {
-        return None;
-      }
-      let middle_index = ((page_orders.len() as f32) / 2.0).floor() as usize;
-      dbg!(page_orders
-        .clone()
-        .iter()
-        .sorted_by_key(|(_num, idx)| *idx)
-        .map(|(num, _idx)| num)
-        .collect_vec());
-      let middle = page_orders
-        .into_iter()
-        .sorted_by_key(|(_num, idx)| *idx)
-        .map(|(num, _idx)| num)
-        .nth(middle_index)
-        .expect("empty iterator");
-      Some(middle)
+        .map(|s| s.parse::<u32>().expect("invalid int"))
+        .collect::<Vec<u32>>()
+    })
+    .filter(|update| !update.is_sorted_by(|x, y| graph.neighbors(*x).contains(y)))
+    .map(|mut update| {
+      debug_assert_ne!(update.len() % 2, 0);
+      update.sort_by(|x, y| graph.neighbors(*x).contains(y).cmp(&true));
+      update[update.len() / 2]
     })
     .sum()
 }
@@ -130,18 +102,38 @@ mod tests {
   #[test]
   fn test_part_two() {
     let input = "
-39|46
-23|35
-23|39
+47|53
+97|13
+97|61
+97|47
+75|29
+61|13
+75|53
+29|13
+97|29
+53|29
+61|53
+97|53
+61|29
+47|13
+75|47
+97|75
+47|61
+75|61
+47|29
+75|13
+53|13
 
-46,32,28,25,39
-32,28,25,39,46
-46,28,35,23,39
-23,35,39,46,28
+75,47,61,53,29
+97,61,53,29,13
+75,29,13
+75,97,47,61,53
+61,13,29
+97,13,75,29,47
     "
     .trim();
     // let result = part_one(&advent_of_code::template::read_file("examples", DAY));
     let result = part_two_no_opt(input);
-    assert_eq!(60, result);
+    assert_eq!(123, result);
   }
 }
