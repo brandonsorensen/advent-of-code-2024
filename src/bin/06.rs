@@ -1,6 +1,11 @@
 advent_of_code::solution!(6);
 
-use std::{collections::HashSet, io::Write, ops::Add};
+use std::{
+  cmp::{max, min},
+  collections::HashSet,
+  io::Write,
+  ops::Add,
+};
 
 use itertools::Itertools;
 use ndarray::prelude::Array2;
@@ -83,14 +88,15 @@ fn print_board(
 ) {
   let half = (window_size / 2) as u8;
   let len = grid.dim().0;
-  let row_min = std::cmp::max(0, position.row.saturating_sub(half) as usize);
-  let row_max = std::cmp::min(len, row_min.add(window_size) as usize);
-  let col_min = std::cmp::max(0, position.column.saturating_sub(half) as usize);
-  let col_max = std::cmp::min(len, col_min.add(window_size) as usize);
+  let row_min = max(0, position.row.saturating_sub(half) as usize);
+  let row_max = min(len, row_min.add(window_size) as usize);
+  let col_min = max(0, position.column.saturating_sub(half) as usize);
+  let col_max = min(len, col_min.add(window_size) as usize);
   let rel_pos = (
-    std::cmp::min(half, position.row) as usize,
-    std::cmp::max(half, position.column) as usize,
+    min(half, position.row) as usize,
+    min(half, position.column) as usize,
   );
+  dbg!(&rel_pos);
   let view = grid.slice(ndarray::s![row_min..row_max, col_min..col_max,]);
   let mut lock = std::io::stdout().lock();
   for (i, row) in view.rows().into_iter().enumerate() {
@@ -288,7 +294,7 @@ fn run_simulation(
   let mut encountered_start = 0;
   while let Some(next_position) = get_next_position(current_pos, grid, Some(obstacle_coord)) {
     #[cfg(debug_assertions)]
-    print_board(&next_position, grid, Some(&obstacle_coord), 10);
+    print_board(&next_position, grid, Some(&obstacle_coord), 11);
     std::thread::sleep(std::time::Duration::from_millis(200));
     encountered_start += (next_position.to_tuple().eq(&start_position.to_tuple())) as u8;
     if encountered_start >= CUTOFF {
