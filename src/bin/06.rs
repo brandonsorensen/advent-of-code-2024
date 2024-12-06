@@ -1,11 +1,11 @@
 advent_of_code::solution!(6);
 
+#[cfg(test)]
 use std::{
   cmp::{max, min},
-  collections::HashSet,
   io::Write,
-  ops::{Add, AddAssign},
 };
+use std::{collections::HashSet, ops::Add};
 
 use itertools::Itertools;
 use ndarray::prelude::Array2;
@@ -76,7 +76,7 @@ enum Impediment {
   Occupied(Position),
 }
 
-#[cfg(any(test, debug_assertions))]
+#[cfg(test)]
 fn print_board(
   position: &Position,
   grid: &Array2<bool>,
@@ -297,10 +297,10 @@ fn run_simulation(
   let mut current_pos = start_position.clone();
   let mut heat_map = Array2::<u8>::zeros(grid.dim());
   while let Some(next_position) = get_next_position(current_pos, grid, Some(obstacle_coord)) {
-    // #[cfg(test)]
-    // print_board(&next_position, grid, Some(&obstacle_coord), 11);
-    // #[cfg(test)]
-    // std::thread::sleep(std::time::Duration::from_millis(200));
+    #[cfg(test)]
+    print_board(&next_position, grid, Some(&obstacle_coord), 11);
+    #[cfg(test)]
+    std::thread::sleep(std::time::Duration::from_millis(200));
     heat_map[next_position.to_tuple_usize()] += 1;
     let encounters = heat_map[next_position.to_tuple_usize()];
     if encounters >= CUTOFF {
