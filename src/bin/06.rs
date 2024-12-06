@@ -12,9 +12,8 @@ pub fn part_one(input: &str) -> Option<u32> {
 
 pub fn part_one_no_opt(input: &str, grid_dimensions: usize) -> u32 {
   let (grid, start_pos) = read_grid(input, grid_dimensions);
+  let mut seen = HashSet::<(u8, u8)>::from([start_pos.to_tuple()]);
   let mut current_pos = start_pos;
-  let mut seen = HashSet::<(u8, u8)>::new();
-  seen.insert(current_pos.to_tuple());
   while let Some(next_position) = get_next_position(current_pos, &grid) {
     seen.insert(next_position.to_tuple());
     current_pos = next_position;
