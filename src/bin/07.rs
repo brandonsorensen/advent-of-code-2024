@@ -4,13 +4,17 @@ use std::iter::repeat_n;
 
 use itertools::Itertools;
 
-const OPERATORS: &[fn(u64, u64) -> u64] = &[std::ops::Add::add, std::ops::Mul::mul];
+const OPERATORS: &[fn(u64, u64) -> u64] = &[std::ops::Add::add, std::ops::Mul::mul, concat];
 
 pub fn part_one(input: &str) -> Option<u64> {
-  Some(part_one_no_opt(input))
+  Some(sum_calibrate(input, &OPERATORS[..2]))
 }
 
-pub fn part_one_no_opt(input: &str) -> u64 {
+pub fn part_two(input: &str) -> Option<u64> {
+  Some(sum_calibrate(input, OPERATORS))
+}
+
+pub fn sum_calibrate(input: &str, operators: &[fn(u64, u64) -> u64]) -> u64 {
   input
     .lines()
     .map(|line| {
@@ -20,7 +24,7 @@ pub fn part_one_no_opt(input: &str) -> u64 {
         .split_ascii_whitespace()
         .map(|s| s.parse::<u64>().expect("invalid integer"))
         .collect::<Vec<_>>();
-      let passes = repeat_n(OPERATORS.iter(), operands.len() - 1)
+      let passes = repeat_n(operators, operands.len() - 1)
         .multi_cartesian_product()
         .zip(std::iter::repeat(operands.iter()))
         .any(|(op_combos, operator_stream)| {
@@ -46,6 +50,8 @@ fn print_operators(ops: &[&fn(u64, u64) -> u64]) {
       eprintln!("op: +");
     } else if **op == OPERATORS[1] {
       eprintln!("op: *");
+    } else if **op == OPERATORS[2] {
+      eprintln!("op: ||");
     }
   }
 }
@@ -54,8 +60,8 @@ fn right_identity<T>(_left: T, right: T) -> T {
   right
 }
 
-pub fn part_two(input: &str) -> Option<u32> {
-  None
+fn concat(left: u64, right: u64) -> u64 {
+  left * 10u64.pow(right.ilog10() + 1) + right
 }
 
 #[cfg(test)]
@@ -76,8 +82,8 @@ mod tests {
       292: 11 6 16 20
     "
     .trim();
-    let result = part_one_no_opt(inputs);
-    assert_eq!(3749, result);
+    let result = part_one(inputs);
+    assert_eq!(3749, result.unwrap());
   }
 
   #[test]
