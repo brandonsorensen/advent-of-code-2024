@@ -17,8 +17,7 @@ pub fn part_two(input: &str) -> Option<u64> {
 
 pub fn sum_calibrate(input: &str, operators: &[fn(u64, u64) -> u64]) -> u64 {
   input
-    .lines()
-    .par_bridge()
+    .par_lines()
     .map(|line| {
       let (lhs, rhs) = line.trim().split_once(':').expect("invalid input");
       let result = lhs.parse::<u64>().expect("invalid integer");
