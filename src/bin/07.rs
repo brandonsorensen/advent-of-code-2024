@@ -3,6 +3,7 @@ advent_of_code::solution!(7);
 use std::iter::repeat_n;
 
 use itertools::Itertools;
+use rayon::prelude::*;
 
 const OPERATORS: &[fn(u64, u64) -> u64] = &[std::ops::Add::add, std::ops::Mul::mul, concat];
 
@@ -17,43 +18,39 @@ pub fn part_two(input: &str) -> Option<u64> {
 pub fn sum_calibrate(input: &str, operators: &[fn(u64, u64) -> u64]) -> u64 {
   input
     .lines()
+    .par_bridge()
     .map(|line| {
       let (lhs, rhs) = line.trim().split_once(':').expect("invalid input");
       let result = lhs.parse::<u64>().expect("invalid integer");
       let operands = rhs
         .split_ascii_whitespace()
-        .map(|s| s.parse::<u64>().expect("invalid integer"))
+        .map(|s| s.trim().parse::<u64>().expect("invalid integer"))
         .collect::<Vec<_>>();
-      let passes = repeat_n(operators, operands.len() - 1)
+      (result, operands)
+    })
+    .filter(|(result, operands)| {
+      repeat_n(operators, operands.len() - 1)
         .multi_cartesian_product()
         .zip(std::iter::repeat(operands.iter()))
         .any(|(op_combos, operator_stream)| {
-          #[cfg(test)]
-          print_operators(op_combos.as_slice());
           // return the first value in the chain, a la `reduce`
           let return_first =
             std::iter::once(&(right_identity as fn(u64, u64) -> u64)).chain(op_combos);
           operator_stream
             .zip(return_first)
-            .fold(0, |acc, (next, op)| op(acc, *next))
-            .eq(&result)
-        });
-      result * (passes as u64)
+            .fold_while(0, |acc, (next, op)| {
+              if acc > *result {
+                itertools::FoldWhile::Done(acc)
+              } else {
+                itertools::FoldWhile::Continue(op(acc, *next))
+              }
+            })
+            .into_inner()
+            .eq(result)
+        })
     })
+    .map(|(result, _operand)| result)
     .sum()
-}
-
-#[cfg(test)]
-fn print_operators(ops: &[&fn(u64, u64) -> u64]) {
-  for op in ops {
-    if **op == OPERATORS[0] {
-      eprintln!("op: +");
-    } else if **op == OPERATORS[1] {
-      eprintln!("op: *");
-    } else if **op == OPERATORS[2] {
-      eprintln!("op: ||");
-    }
-  }
 }
 
 fn right_identity<T>(_left: T, right: T) -> T {
