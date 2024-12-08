@@ -12,13 +12,8 @@ const INPUT_SHAPE: u8 = 50;
 pub fn part_one_no_opt(input: &str) -> u32 {
   group_antennas(input)
     .into_values()
-    .flat_map(|points| points.into_iter().permutations(2))
-    .flat_map(|pair| {
-      debug_assert_eq!(pair.len(), 2);
-      let first = pair.first().unwrap();
-      let second = pair.get(1).unwrap();
-      first.antinodes(second).into_iter().flatten()
-    })
+    .flat_map(|points| points.into_iter().tuple_combinations::<(_, _)>())
+    .flat_map(|(first, second)| first.antinodes(&second).into_iter().flatten())
     .unique()
     .count() as u32
 }
@@ -26,13 +21,8 @@ pub fn part_one_no_opt(input: &str) -> u32 {
 fn part_two_no_opt(input: &str) -> u32 {
   group_antennas(input)
     .into_values()
-    .flat_map(|points| points.into_iter().permutations(2))
-    .flat_map(|pair| {
-      debug_assert_eq!(pair.len(), 2);
-      let first = pair.first().unwrap();
-      let second = pair.get(1).unwrap();
-      first.antinodes_harmonic(second).chain(pair)
-    })
+    .flat_map(|points| points.into_iter().tuple_combinations::<(_, _)>())
+    .flat_map(|(first, second)| first.antinodes_harmonic(&second).chain([first, second]))
     .unique()
     .count() as u32
 }
