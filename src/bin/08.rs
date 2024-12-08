@@ -1,6 +1,9 @@
 advent_of_code::solution!(8);
 
-use std::{collections::HashMap, iter::repeat};
+use std::{
+  collections::HashMap,
+  iter::{repeat, successors},
+};
 
 use itertools::Itertools;
 
@@ -11,16 +14,14 @@ pub fn part_one(input: &str) -> Option<u32> {
 }
 
 pub fn part_one_no_opt(input: &str) -> u32 {
-  let counts = count_antennas(input);
-  counts
+  count_antennas(input)
     .into_iter()
     .flat_map(|(_char, points)| points.into_iter().permutations(2))
     .flat_map(|pair| {
       debug_assert_eq!(pair.len(), 2);
       let first = pair.first().unwrap();
       let second = pair.get(1).unwrap();
-      let antinodes = first.antinodes(second);
-      [antinodes.0, antinodes.1].into_iter().flatten()
+      first.antinodes(second).into_iter().flatten()
     })
     .unique()
     .count() as u32
@@ -51,9 +52,18 @@ struct Point {
 }
 
 impl Point {
-  fn antinodes(&self, other: &Point) -> (Option<Point>, Option<Point>) {
+  fn antinodes(&self, other: &Point) -> [Option<Point>; 2] {
     let delta = self.delta(other);
-    (self - delta, other + delta)
+    [self - delta, other + delta]
+  }
+
+  fn antinodes_harmonic(&self, other: &Point) -> impl Iterator<Item = Point> {
+    let delta = self.delta(other);
+    // the first element of each iter is self/other, so we skip it
+    itertools::interleave(
+      successors(Some(self.clone()), move |point| point - delta).skip(1),
+      successors(Some(other.clone()), move |point| point + delta).skip(1),
+    )
   }
 
   fn delta(&self, other: &Point) -> (i8, i8) {
@@ -93,7 +103,25 @@ impl std::fmt::Display for Point {
 }
 
 pub fn part_two(input: &str) -> Option<u32> {
-  None
+  Some(part_two_no_opt(input))
+}
+
+fn part_two_no_opt(input: &str) -> u32 {
+  count_antennas(input)
+    .into_iter()
+    .flat_map(|(_char, points)| points.into_iter().permutations(2))
+    .flat_map(|pair| {
+      debug_assert_eq!(pair.len(), 2);
+      let first = pair.first().unwrap();
+      let second = pair.get(1).unwrap();
+      first
+        .antinodes_harmonic(second)
+        .collect_vec()
+        .into_iter()
+        .chain(pair)
+    })
+    .unique()
+    .count() as u32
 }
 
 #[cfg(test)]
