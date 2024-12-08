@@ -9,10 +9,6 @@ use itertools::Itertools;
 
 const INPUT_SHAPE: u8 = 50;
 
-pub fn part_one(input: &str) -> Option<u32> {
-  Some(part_one_no_opt(input))
-}
-
 pub fn part_one_no_opt(input: &str) -> u32 {
   count_antennas(input)
     .into_iter()
@@ -22,6 +18,20 @@ pub fn part_one_no_opt(input: &str) -> u32 {
       let first = pair.first().unwrap();
       let second = pair.get(1).unwrap();
       first.antinodes(second).into_iter().flatten()
+    })
+    .unique()
+    .count() as u32
+}
+
+fn part_two_no_opt(input: &str) -> u32 {
+  count_antennas(input)
+    .into_iter()
+    .flat_map(|(_char, points)| points.into_iter().permutations(2))
+    .flat_map(|pair| {
+      debug_assert_eq!(pair.len(), 2);
+      let first = pair.first().unwrap();
+      let second = pair.get(1).unwrap();
+      first.antinodes_harmonic(second).chain(pair)
     })
     .unique()
     .count() as u32
@@ -102,26 +112,12 @@ impl std::fmt::Display for Point {
   }
 }
 
-pub fn part_two(input: &str) -> Option<u32> {
-  Some(part_two_no_opt(input))
+pub fn part_one(input: &str) -> Option<u32> {
+  Some(part_one_no_opt(input))
 }
 
-fn part_two_no_opt(input: &str) -> u32 {
-  count_antennas(input)
-    .into_iter()
-    .flat_map(|(_char, points)| points.into_iter().permutations(2))
-    .flat_map(|pair| {
-      debug_assert_eq!(pair.len(), 2);
-      let first = pair.first().unwrap();
-      let second = pair.get(1).unwrap();
-      first
-        .antinodes_harmonic(second)
-        .collect_vec()
-        .into_iter()
-        .chain(pair)
-    })
-    .unique()
-    .count() as u32
+pub fn part_two(input: &str) -> Option<u32> {
+  Some(part_two_no_opt(input))
 }
 
 #[cfg(test)]
