@@ -10,9 +10,9 @@ use itertools::Itertools;
 const INPUT_SHAPE: u8 = 50;
 
 pub fn part_one_no_opt(input: &str) -> u32 {
-  count_antennas(input)
-    .into_iter()
-    .flat_map(|(_char, points)| points.into_iter().permutations(2))
+  group_antennas(input)
+    .into_values()
+    .flat_map(|points| points.into_iter().permutations(2))
     .flat_map(|pair| {
       debug_assert_eq!(pair.len(), 2);
       let first = pair.first().unwrap();
@@ -24,9 +24,9 @@ pub fn part_one_no_opt(input: &str) -> u32 {
 }
 
 fn part_two_no_opt(input: &str) -> u32 {
-  count_antennas(input)
-    .into_iter()
-    .flat_map(|(_char, points)| points.into_iter().permutations(2))
+  group_antennas(input)
+    .into_values()
+    .flat_map(|points| points.into_iter().permutations(2))
     .flat_map(|pair| {
       debug_assert_eq!(pair.len(), 2);
       let first = pair.first().unwrap();
@@ -37,7 +37,7 @@ fn part_two_no_opt(input: &str) -> u32 {
     .count() as u32
 }
 
-fn count_antennas(input: &str) -> HashMap<char, Vec<Point>> {
+fn group_antennas(input: &str) -> HashMap<char, Vec<Point>> {
   input
     .lines()
     .enumerate()
