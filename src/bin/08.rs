@@ -10,19 +10,28 @@ use itertools::Itertools;
 const INPUT_SHAPE: u8 = 50;
 
 pub fn part_one_no_opt(input: &str) -> u32 {
-  group_antennas(input)
-    .into_values()
-    .flat_map(|points| points.into_iter().tuple_combinations::<(_, _)>())
-    .flat_map(|(first, second)| first.antinodes(&second).into_iter().flatten())
-    .unique()
-    .count() as u32
+  count_anitnodes(input, |first, second| {
+    first.antinodes(&second).into_iter().flatten()
+  })
 }
 
 fn part_two_no_opt(input: &str) -> u32 {
+  count_anitnodes(input, |first, second| {
+    first.antinodes_harmonic(&second).chain([first, second])
+  })
+}
+
+/// Counts the antinodes in the input. `f` is a function that takes
+/// two points and produces an iterator of their antinodes.
+fn count_anitnodes<F, I>(input: &str, f: F) -> u32
+where
+  F: Fn(Point, Point) -> I,
+  I: Iterator<Item = Point>,
+{
   group_antennas(input)
     .into_values()
     .flat_map(|points| points.into_iter().tuple_combinations::<(_, _)>())
-    .flat_map(|(first, second)| first.antinodes_harmonic(&second).chain([first, second]))
+    .flat_map(|(first, second)| (f)(first, second))
     .unique()
     .count() as u32
 }
