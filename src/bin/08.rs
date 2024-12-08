@@ -10,20 +10,20 @@ use itertools::Itertools;
 const INPUT_SHAPE: u8 = 50;
 
 pub fn part_one_no_opt(input: &str) -> u32 {
-  count_anitnodes(input, |first, second| {
+  count_antinodes(input, |first, second| {
     first.antinodes(&second).into_iter().flatten()
   })
 }
 
 fn part_two_no_opt(input: &str) -> u32 {
-  count_anitnodes(input, |first, second| {
+  count_antinodes(input, |first, second| {
     first.antinodes_harmonic(&second).chain([first, second])
   })
 }
 
 /// Counts the antinodes in the input. `f` is a function that takes
 /// two points and produces an iterator of their antinodes.
-fn count_anitnodes<F, I>(input: &str, f: F) -> u32
+fn count_antinodes<F, I>(input: &str, f: F) -> u32
 where
   F: Fn(Point, Point) -> I,
   I: Iterator<Item = Point>,
