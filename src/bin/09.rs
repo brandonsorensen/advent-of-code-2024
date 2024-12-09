@@ -27,8 +27,39 @@ pub fn part_one_no_opt(input: &str) -> u64 {
   checksum(sparse)
 }
 
-pub fn part_two_no_opt(input: &str) -> u32 {
-  0
+pub fn part_two_no_opt(input: &str) -> u64 {
+  let mut spans = parse_spans(input);
+  let mut right_index = spans.len() - 1;
+  while right_index > 0 {
+    let right = spans[right_index];
+    match right {
+      Span::File { len, .. } => {
+        if let Some((free_index, Span::Free(free_len))) = spans
+          .iter()
+          .enumerate()
+          .take_while(|(index, _span)| *index < right_index)
+          .find(|(_index, span)| matches!(span, Span::Free(flen) if (*flen as u32) >= len))
+          .map(|(index, span)| (index, *span))
+        {
+          spans.swap(free_index, right_index);
+          let len_diff = (free_len as u32) - len;
+          if len_diff != 0 {
+            spans.insert(free_index, Span::Free(len_diff as usize));
+            right_index += 1;
+          }
+        }
+      }
+      Span::Free(_) => {}
+    }
+    right_index -= 1;
+  }
+  spans
+    .into_iter()
+    .flat_map(|span| span.into_iter())
+    .flatten()
+    .enumerate()
+    .map(|(x, y)| (x as u32 * y) as u64)
+    .sum()
 }
 
 fn checksum(packed: impl IntoIterator<Item = Option<u32>>) -> u64 {
@@ -56,11 +87,53 @@ fn parse_unpacked(input: &str) -> Vec<Option<u32>> {
     .collect()
 }
 
+fn parse_spans(input: &str) -> Vec<Span> {
+  const RADIX: u32 = 10;
+  let spans = input
+    .trim()
+    .chars()
+    .map(|char| char.to_digit(RADIX).expect("invalid input character"))
+    .enumerate()
+    .map(|(index, val)| {
+      let halved = index / 2;
+      let rem = index % 2;
+      if rem == 0 {
+        Span::File {
+          id: halved as u32,
+          len: val,
+        }
+      } else {
+        Span::Free(val as usize)
+      }
+    })
+    .collect();
+  spans
+}
+
+#[derive(Clone, Copy)]
+enum Span {
+  File { id: u32, len: u32 },
+  Free(usize),
+}
+
+impl IntoIterator for Span {
+  type Item = Option<u32>;
+  type IntoIter = std::iter::RepeatN<Option<u32>>;
+
+  fn into_iter(self) -> Self::IntoIter {
+    let (n_repeat, to_repeat) = match self {
+      Self::File { id, len } => (len as usize, Some(id)),
+      Self::Free(len) => (len, None),
+    };
+    repeat_n(to_repeat, n_repeat)
+  }
+}
+
 pub fn part_one(input: &str) -> Option<u64> {
   Some(part_one_no_opt(input))
 }
 
-pub fn part_two(input: &str) -> Option<u32> {
+pub fn part_two(input: &str) -> Option<u64> {
   Some(part_two_no_opt(input))
 }
 
