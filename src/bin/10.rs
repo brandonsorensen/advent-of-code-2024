@@ -138,34 +138,6 @@ impl Point {
   }
 }
 
-impl std::ops::Add<Delta> for &Point {
-  type Output = Option<Point>;
-  fn add(self, rhs: Delta) -> Self::Output {
-    let row = self
-      .row
-      .checked_add_signed(rhs.0)
-      .filter(|val| *val < INPUT_SHAPE)?;
-    let col = self
-      .col
-      .checked_add_signed(rhs.1)
-      .filter(|val| *val < INPUT_SHAPE)?;
-    Some(Point { row, col })
-  }
-}
-
-impl std::ops::Sub<Delta> for &Point {
-  type Output = Option<Point>;
-  fn sub(self, rhs: Delta) -> Self::Output {
-    self + (-rhs.0, -rhs.1)
-  }
-}
-
-impl std::fmt::Display for Point {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    write!(f, "({}, {})", self.row, self.col)
-  }
-}
-
 pub fn part_one(input: &str) -> Option<u32> {
   Some(part_one_no_opt(input, INPUT_SHAPE.into()))
 }
