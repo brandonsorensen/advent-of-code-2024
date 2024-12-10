@@ -23,6 +23,21 @@ fn part_one_no_opt(input: &str, shape: usize) -> u32 {
     .sum()
 }
 
+fn part_two_no_opt(input: &str, shape: usize) -> u32 {
+  let (grid, trailheads) = Grid::from_input(input, shape);
+  trailheads
+    .into_par_iter()
+    .map(|index| Point::from_running_index(index, shape as u32))
+    .map(|initial| {
+      let out = grid
+        .neighbors(&initial)
+        .flat_map(|next| grid.count_paths(0, &next))
+        .count();
+      out as u32
+    })
+    .sum()
+}
+
 struct Grid(Array2<u8>);
 
 impl Grid {
@@ -32,7 +47,6 @@ impl Grid {
       (x, y) if y.saturating_sub(x) == 1 => self
         .neighbors(&candidate.point)
         .flat_map(|next| self.count_paths(candidate.val, &next))
-        .unique()
         .collect(),
       _ => Vec::new(),
     }
@@ -148,7 +162,7 @@ pub fn part_one(input: &str) -> Option<u32> {
 }
 
 pub fn part_two(input: &str) -> Option<u32> {
-  None
+  Some(part_two_no_opt(input, INPUT_SHAPE.into()))
 }
 
 #[cfg(test)]
@@ -174,7 +188,18 @@ mod tests {
 
   #[test]
   fn test_part_two() {
-    let result = part_two(&advent_of_code::template::read_file("examples", DAY));
-    assert_eq!(result, None);
+    let input = "
+      89010123
+      78121874
+      87430965
+      96549874
+      45678903
+      32019012
+      01329801
+      10456732
+    "
+    .trim();
+    let result = part_two_no_opt(input, 8);
+    assert_eq!(81, result);
   }
 }
