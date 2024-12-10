@@ -15,7 +15,7 @@ fn part_one_no_opt(input: &str, shape: usize) -> u32 {
     .map(|initial| {
       grid
         .neighbors(&initial)
-        .flat_map(|next| grid.collect_paths(0, &next))
+        .flat_map(|next| grid.collect_paths(0, next))
         .unique()
         .count() as u32
     })
@@ -39,12 +39,12 @@ fn part_two_no_opt(input: &str, shape: usize) -> u32 {
 struct Grid(Array2<u8>);
 
 impl Grid {
-  fn collect_paths(&self, current: u8, candidate: &Candidate) -> Vec<Point> {
+  fn collect_paths(&self, current: u8, candidate: Candidate) -> Vec<Point> {
     match (current, candidate.val) {
-      (8, 9) => vec![candidate.point.clone()],
+      (8, 9) => vec![candidate.point],
       (x, y) if y.saturating_sub(x) == 1 => self
         .neighbors(&candidate.point)
-        .flat_map(|next| self.collect_paths(candidate.val, &next))
+        .flat_map(|next| self.collect_paths(candidate.val, next))
         .collect(),
       _ => Vec::new(),
     }
