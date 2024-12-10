@@ -13,12 +13,11 @@ fn part_one_no_opt(input: &str, shape: usize) -> u32 {
     .into_par_iter()
     .map(|index| Point::from_running_index(index, shape as u32))
     .map(|initial| {
-      let out = grid
+      grid
         .neighbors(&initial)
         .flat_map(|next| grid.collect_paths(0, &next))
         .unique()
-        .count();
-      out as u32
+        .count() as u32
     })
     .sum()
 }
