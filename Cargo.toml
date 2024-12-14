@@ -26,7 +26,7 @@ chrono = { version = "0.4.38", optional = true }
 dhat = { version = "0.3.3", optional = true }
 itertools = "0.13.0"
 ndarray = "0.15"
-ndarray-linalg = {version = "0.15", features = ["openblas-static"]}
+ndarray-linalg = {version = "0.15"}
 petgraph = "0.6.5"
 pico-args = "0.5.0"
 rayon = "1.10.0"
