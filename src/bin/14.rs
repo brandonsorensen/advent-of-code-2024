@@ -5,23 +5,29 @@ use std::{str::FromStr, sync::OnceLock};
 use itertools::Itertools;
 use regex::Regex;
 
-const TILE_HEIGHT: i32 = 101;
-const TILE_WIDTH: i32 = 103;
+const TILE_HEIGHT: i32 = 103;
+const TILE_WIDTH: i32 = 101;
 
 fn part_one_no_opt(input: &str) -> u32 {
-  read_input(input)
-    .map(|robot| robot.simulate_forward(100))
-    .filter_map(|point| point.quadrant())
-    .counts()
-    .into_values()
-    .product::<usize>() as u32
+  solve::<TILE_WIDTH, TILE_HEIGHT>(input, 100)
 }
 
 fn part_two_no_opt(input: &str) -> u32 {
   0
 }
 
-fn read_input(input: &str) -> impl Iterator<Item = Robot> + '_ {
+fn solve<const WIDTH: i32, const HEIGHT: i32>(input: &str, seconds: u32) -> u32 {
+  read_input::<WIDTH, HEIGHT>(input)
+    .map(|robot| robot.simulate_forward(seconds))
+    .filter_map(|point| point.quadrant())
+    .counts()
+    .into_values()
+    .product::<usize>() as u32
+}
+
+fn read_input<const WIDTH: i32, const HEIGHT: i32>(
+  input: &str,
+) -> impl Iterator<Item = Robot<WIDTH, HEIGHT>> + '_ {
   input
     .trim()
     .lines()
@@ -33,19 +39,19 @@ fn line_regex() -> &'static Regex {
   LINE_REG.get_or_init(|| Regex::new(r"p=(\d+),(\d+) v=(-?\d+),(-?\d+)").unwrap())
 }
 
-struct Robot {
-  position: Point,
+struct Robot<const WIDTH: i32, const HEIGHT: i32> {
+  position: Point<WIDTH, HEIGHT>,
   velocity: Velocity,
 }
 
-impl Robot {
-  fn simulate_forward(self, seconds: u32) -> Point {
+impl<const WIDTH: i32, const HEIGHT: i32> Robot<WIDTH, HEIGHT> {
+  fn simulate_forward(self, seconds: u32) -> Point<WIDTH, HEIGHT> {
     let integ_velo = self.velocity * seconds;
     self.position + integ_velo
   }
 }
 
-impl FromStr for Robot {
+impl<const WIDTH: i32, const HEIGHT: i32> FromStr for Robot<WIDTH, HEIGHT> {
   type Err = &'static str;
 
   fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -64,17 +70,18 @@ impl FromStr for Robot {
   }
 }
 
-struct Point(i32, i32);
+#[derive(Debug)]
+struct Point<const WIDTH: i32, const HEIGHT: i32>(i32, i32);
 
-impl Point {
+impl<const WIDTH: i32, const HEIGHT: i32> Point<WIDTH, HEIGHT> {
   fn quadrant(&self) -> Option<Quadrant> {
-    const MID_WIDE: i32 = TILE_WIDTH / 2;
-    const MID_TALL: i32 = TILE_HEIGHT / 2;
-    if self.0 == MID_WIDE || self.1 == MID_TALL {
+    let mid_wide: i32 = WIDTH / 2;
+    let mid_tall: i32 = HEIGHT / 2;
+    if self.0 == mid_wide || self.1 == mid_tall {
       None
     } else {
-      let up = self.0 < MID_TALL;
-      let left = self.0 < MID_WIDE;
+      let left = self.0 < mid_wide;
+      let up = self.1 < mid_tall;
       let quad = match (up, left) {
         (true, true) => Quadrant::UpLeft,
         (true, false) => Quadrant::UpRight,
@@ -86,14 +93,17 @@ impl Point {
   }
 }
 
-impl std::ops::Add<Velocity> for Point {
+impl<const WIDTH: i32, const HEIGHT: i32> std::ops::Add<Velocity> for Point<WIDTH, HEIGHT> {
   type Output = Self;
   fn add(self, rhs: Velocity) -> Self::Output {
-    Self((self.0 + rhs.0) % TILE_WIDTH, self.1 + rhs.1 % TILE_HEIGHT)
+    Self(
+      (self.0 + rhs.0).rem_euclid(WIDTH),
+      (self.1 + rhs.1).rem_euclid(HEIGHT),
+    )
   }
 }
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 enum Quadrant {
   UpLeft,
   UpRight,
@@ -124,8 +134,23 @@ mod tests {
 
   #[test]
   fn test_part_one() {
-    let result = part_one(&advent_of_code::template::read_file("examples", DAY));
-    assert_eq!(result, None);
+    let input = "
+      p=0,4 v=3,-3
+      p=6,3 v=-1,-3
+      p=10,3 v=-1,2
+      p=2,0 v=2,-1
+      p=0,0 v=1,3
+      p=3,0 v=-2,-2
+      p=7,6 v=-1,-3
+      p=3,0 v=-1,-2
+      p=9,3 v=2,3
+      p=7,3 v=-1,2
+      p=2,4 v=2,-3
+      p=9,5 v=-3,-3
+    "
+    .trim();
+    let result = solve::<11, 7>(input, 100);
+    assert_eq!(12, result);
   }
 
   #[test]
