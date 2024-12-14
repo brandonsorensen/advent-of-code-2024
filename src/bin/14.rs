@@ -13,7 +13,7 @@ fn part_one_no_opt(input: &str) -> u32 {
 }
 
 fn part_two_no_opt(input: &str) -> u32 {
-  0
+  solve_2::<TILE_WIDTH, TILE_HEIGHT>(input)
 }
 
 fn solve<const WIDTH: i32, const HEIGHT: i32>(input: &str, seconds: u32) -> u32 {
@@ -23,6 +23,24 @@ fn solve<const WIDTH: i32, const HEIGHT: i32>(input: &str, seconds: u32) -> u32 
     .counts()
     .into_values()
     .product::<usize>() as u32
+}
+
+fn solve_2<const WIDTH: i32, const HEIGHT: i32>(input: &str) -> u32 {
+  // just check until no robots are in the same spot;
+  // just clone; don't care about perf for this one
+  let robots = read_input::<WIDTH, HEIGHT>(input).collect::<Vec<_>>();
+  std::iter::successors(Some(robots), |current| {
+    if !current
+      .iter()
+      .map(|robot| robot.position.clone())
+      .all_unique()
+    {
+      Some(current.iter().cloned().map(Robot::tick).collect())
+    } else {
+      None
+    }
+  })
+  .count() as u32
 }
 
 fn read_input<const WIDTH: i32, const HEIGHT: i32>(
@@ -39,6 +57,7 @@ fn line_regex() -> &'static Regex {
   LINE_REG.get_or_init(|| Regex::new(r"p=(\d+),(\d+) v=(-?\d+),(-?\d+)").unwrap())
 }
 
+#[derive(Clone, Hash, PartialEq, Eq)]
 struct Robot<const WIDTH: i32, const HEIGHT: i32> {
   position: Point<WIDTH, HEIGHT>,
   velocity: Velocity,
@@ -48,6 +67,14 @@ impl<const WIDTH: i32, const HEIGHT: i32> Robot<WIDTH, HEIGHT> {
   fn simulate_forward(self, seconds: u32) -> Point<WIDTH, HEIGHT> {
     let integ_velo = self.velocity * seconds;
     self.position + integ_velo
+  }
+
+  fn tick(self) -> Self {
+    let vel = self.velocity.clone();
+    Self {
+      position: self.simulate_forward(1),
+      velocity: vel,
+    }
   }
 }
 
@@ -70,7 +97,7 @@ impl<const WIDTH: i32, const HEIGHT: i32> FromStr for Robot<WIDTH, HEIGHT> {
   }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Hash, Eq, PartialEq)]
 struct Point<const WIDTH: i32, const HEIGHT: i32>(i32, i32);
 
 impl<const WIDTH: i32, const HEIGHT: i32> Point<WIDTH, HEIGHT> {
@@ -103,7 +130,7 @@ impl<const WIDTH: i32, const HEIGHT: i32> std::ops::Add<Velocity> for Point<WIDT
   }
 }
 
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 enum Quadrant {
   UpLeft,
   UpRight,
@@ -111,6 +138,7 @@ enum Quadrant {
   DownRight,
 }
 
+#[derive(Clone, Hash, PartialEq, Eq)]
 struct Velocity(i32, i32);
 
 impl std::ops::Mul<u32> for Velocity {
